@@ -1,0 +1,10 @@
+const prueba = (req, resp)=>{
+    return resp.status(200).json({
+        mensaje:"prueba"
+    });
+}
+
+
+module.exports = {
+    prueba
+}
