@@ -1,10 +1,282 @@
-const prueba = (req, resp)=>{
-    return resp.status(200).json({
-        mensaje:"prueba"
-    });
-}
+const Article = require("../models/Article");
+const {articleValidator} = require("../helpers/validator");
+const fs= require("fs");
+const path = require("path");
 
+const get = (req, res) => {
+    const listaDeArticles = []; 
+    
+    const promises = listaDeArticles.map(elem => elem.get());
+
+    Promise.all(promises)
+        .then(articles => {
+            res.status(200).json({
+                status: "success",
+                articles
+            });
+        })
+        .catch(err => {
+            res.status(500).json({
+                status: "error",
+                mensaje: "Artículos no encontrados"
+            });
+        });
+};
+
+const getById = async(req, resp)=>{
+ 
+    try {
+        const {id} = req.params;
+        const article = await Article.findById(id).exec();
+        
+        if(!article){
+            return resp.status(404).json({
+                status: "error",
+                mensaje: "Artículo no encontrado"
+            });
+        }
+        resp.status(200).json({
+            status: "success",
+            article
+        });
+    } catch (error) {
+        resp.status(500).json({
+            status: "error",
+            mensaje: "No se pudo obtener el articulo"
+        });
+    }
+};
+
+const getAll = async (req, resp) => {
+    try {
+        const articles = await Article.find({}).sort({date: -1}).exec();
+        
+        resp.status(200).json({
+            status: "success",
+            articles
+        });
+    } catch (error) {
+        resp.status(400).json({
+            status: "error",
+            mensaje: "No se pudieron encontrar los artículos"
+        });
+    }
+};
+
+const save = (req, resp)=>{
+
+    let parameters = req.body;
+
+    try{
+        articleValidator(parameters);
+    }catch(error){
+        return resp.status(400).json({
+            status:"error",
+            mensaje:"Faltan datos por enviar"
+        });
+    }
+
+    const article = new Article(parameters);
+
+    article.save()
+        .then(savedArticle => {
+            resp.status(200).json({
+                status: "sucess",
+                article: savedArticle,
+                mensaje:"Articulo creado con exito"
+            });
+        })
+        .catch(err => {
+            resp.status(500).json({
+                status: "error",
+                mensaje:"Articulo no creado"
+            });
+        });
+    };
+
+const updateById = async (req, resp) => {
+    try {
+        const { id } = req.params;
+        const updateData = req.body;
+
+        try{
+            articleValidator(updateData);
+        }catch(error){
+            return resp.status(400).json({
+                status:"error",
+                mensaje:"Faltan datos por enviar"
+            });
+        }
+        
+        const updatedArticle = await Article.findOneAndUpdate(
+            { _id: id },
+            updateData,
+            {
+                new: true,           // Devuelve el documento actualizado
+                // runValidators: true  // Ejecuta las validaciones definidas en el esquema
+            }
+        ).exec();
+
+        if (!updatedArticle) {
+            return resp.status(404).json({
+                status: "error",
+                mensaje: "Artículo no encontrado"
+            });
+        }
+
+        resp.status(200).json({
+            status: "success",
+            article: updatedArticle
+        });
+    } catch (error) {
+        resp.status(500).json({
+            status: "error",
+            mensaje: "No se pudo actualizar el artículo"
+        });
+    }
+};
+
+const deleteById = async(req, resp)=>{
+
+    try {
+        const { id } = req.params;
+        const result = await Article.findOneAndDelete({ _id: id }, req.body).exec();
+        
+        if (!result) {
+            return resp.status(404).json({
+                status: "error",
+                mensaje: "Artículo no encontrado"
+            });
+        }
+        
+        resp.status(200).json({
+            status: "success",
+            mensaje: "Articulo eliminado"
+        });
+    } catch (error) {
+        resp.status(500).json({
+            status: "error",
+            mensaje: "No se pudo actualizar el artículo"
+        });
+    }
+};
+
+const uploadImage = async (req, resp) => {
+    if (!req.file) {
+        return resp.status(400).json({
+            status: "error",
+            mensaje: "Petición inválida"
+        });
+    }
+
+    console.log("Archivo recibido:", req.file);
+
+    let fileName = req.file.originalname;
+    let split = fileName.split(".");
+    let extension = split[split.length - 1].toLowerCase();
+
+    if (extension !== "png" && extension !== "jpg" && extension !== "jpeg") {
+        fs.unlink(req.file.path, (error) => {
+            if (error) {
+                return resp.status(500).json({
+                    status: "error",
+                    mensaje: "No se pudo eliminar el archivo"
+                });
+            }
+            return resp.status(400).json({
+                status: "error",
+                mensaje: "Imagen inválida"
+            });
+        });
+        return;
+    } else {
+        try {
+            const { id } = req.params;
+            console.log("ID del artículo:", id);
+
+            const article = await Article.findOneAndUpdate(
+                { _id: id },
+                { file: req.file.filename },
+                {
+                    new: true,           
+                }
+            ).exec();
+
+            console.log("Artículo actualizado:", article);
+    
+            if (!article) {
+                return resp.status(404).json({
+                    status: "error",
+                    mensaje: "Artículo no encontrado"
+                });
+            }
+
+            return resp.status(200).json({
+                status: "success",
+                articulo: article
+            });
+
+        } catch (error) {
+            console.log("Error al guardar la imagen:", error);
+            return resp.status(500).json({
+                status: "error",
+                mensaje: "No se pudo guardar la imagen"
+            });
+        }
+    }
+};
+const getImage1 = (req, resp) => {
+
+    let file = req.params;
+    let imagePath= "./images/articles/" + file;
+    fs.stat(imagePath, (error, isPresent)=> {
+        if(isPresent){
+            return resp.sendFile(path.resolve(imagePath));
+        }else{
+            return resp.status(404).json({
+                status: "error",
+                mensaje: "Artículo no encontrado"
+            });
+        }
+    })
+};
+const getImage = async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        const article = await Article.findById(id);
+
+        if (!article || !article.file) {
+            return res.status(404).json({
+                status: "error",
+                mensaje: "Artículo o imagen no encontrada"
+            });
+        }
+        let imagePath= "./images/articles/" + article.file;
+
+        if (fs.existsSync(imagePath)) {
+            return res.sendFile(path.resolve(imagePath));
+        } else {
+            return res.status(404).json({
+                status: "error",
+                mensaje: "Imagen no encontrada"
+            });
+        }
+    } catch (error) {
+        console.log("Error al obtener la imagen:", error);
+        return res.status(500).json({
+            status: "error",
+            mensaje: "Error interno del servidor"
+        });
+    }
+};
 
 module.exports = {
-    prueba
+    getById,
+    getAll,
+    getImage,
+    save,
+    updateById,
+    deleteById,
+    uploadImage
 }

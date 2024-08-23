@@ -9,10 +9,13 @@ const ArticleSchema = Schema({
         type : String,
         required: true
     } ,
-    Date:  {
+    date:  {
         type : Date,
         default: Date.now
+    } ,
+    file:  {
+        type : String
     } 
 })
 
-module.exports = model("Article",ArticleSchema,articles);
+module.exports = model("Article",ArticleSchema,"articles");
